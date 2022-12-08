@@ -45,7 +45,18 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 	//передаем рестораны в джобы
 	for _, place := range Response.Payload.FoundPlaces {
 		if place.Restaurant.Rating >= y.Rating {
-			restInput <- place.Restaurant
+			//тут штука которая стопит парсинг когда отменяется контекст
+			select {
+			case <-ctx.Done():
+				//заканчиваем обработку если упал таймаут сверху
+				var zeroRest structs.Restaurant
+				for i := 0; i < *jobs; i++ {
+					restInput <- zeroRest
+					<-done
+				}
+			default:
+				restInput <- place.Restaurant
+			}
 		}
 	}
 	var zeroRest structs.Restaurant

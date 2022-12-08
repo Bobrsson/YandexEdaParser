@@ -54,7 +54,7 @@ func RunPublic(
 	r.HandleFunc("/parse", app.basicAuth(func(w http.ResponseWriter, r *http.Request) {
 
 		ch := make(chan string, 1)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 
 		go h.RunParser(ctx, jobs, ch)
