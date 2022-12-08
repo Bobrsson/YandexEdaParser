@@ -61,7 +61,7 @@ func RunPublic(
 		//w.WriteHeader(http.StatusAccepted)
 		select {
 		case <-ctx.Done():
-			fmt.Printf("Context cancelled: %v\n", ctx.Err())
+			fmt.Printf("Context cancell ed: %v\n", ctx.Err())
 			w.WriteHeader(http.StatusRequestTimeout)
 		case result := <-ch:
 			fmt.Printf("Done: %s\n", result)

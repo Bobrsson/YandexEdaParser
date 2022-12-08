@@ -50,6 +50,7 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 			case <-ctx.Done():
 				//заканчиваем обработку если упал таймаут сверху
 				var zeroRest structs.Restaurant
+
 				for i := 0; i < *jobs; i++ {
 					restInput <- zeroRest
 					<-done
