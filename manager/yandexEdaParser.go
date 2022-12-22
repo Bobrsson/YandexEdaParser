@@ -19,16 +19,18 @@ import (
 var err error
 
 func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string) (err error) {
-	log.Println("Начал многопоточный парсинг, потоков ", 8)
+	log.Println("Начал многопоточный парсинг, потоков ", *jobs)
 
 	getRestHttp := fmt.Sprintf("https://eda.yandex.ru/api/v2/catalog?latitude=%f&longitude=%f&rating=4.8", y.Latitude, y.Longitude)
 
 	var allRestorationListResponse *http.Response
 	if allRestorationListResponse, err = http.Get(getRestHttp); err != nil {
+		log.Println(errors.Wrap(err, "Error Get from Yandex"))
 		return errors.Wrap(err, "Error Get from Yandex")
 	}
 	var bodyAllRestorationListResponse []byte
 	if bodyAllRestorationListResponse, err = io.ReadAll(allRestorationListResponse.Body); err != nil {
+		log.Println(errors.Wrap(err, "Error Read Body allRestorationListResponse"))
 		return errors.Wrap(err, "Error Read Body allRestorationListResponse")
 	}
 
@@ -50,11 +52,13 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 			case <-ctx.Done():
 				//заканчиваем обработку если упал таймаут сверху
 				var zeroRest structs.Restaurant
-
+				log.Println("Контекст завершился, обработчики прибиваем.")
 				for i := 0; i < *jobs; i++ {
 					restInput <- zeroRest
 					<-done
 				}
+				ch <- "Done Parse Timeout"
+				return nil
 			default:
 				restInput <- place.Restaurant
 			}

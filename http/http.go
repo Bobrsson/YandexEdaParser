@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -49,26 +48,50 @@ func RunPublic(
 	//if app.auth.password == "" {
 	//	log.Fatal("basic auth password must be provided")
 	//}
-
+	var isParsing bool = false
 	//запускаем парсинг ресторанов
-	r.HandleFunc("/parse", app.basicAuth(func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/parse", locker(app.basicAuth(ParserHandler(h, jobs, &isParsing)), &isParsing)).Methods("GET")
+	r.HandleFunc("/restaurant", app.basicAuth(RestaurantHandler(h))).Methods("GET")
+	r.HandleFunc("/restaurant/{id}", app.basicAuth(OneRestaurantHandler(h))).Methods("GET")
 
+	log.Println("Listening...")
+	srv := &http.Server{
+		Handler: r,
+		Addr:    "127.0.0.1:8000",
+		// Good practice: enforce timeouts for servers you create!
+		//WriteTimeout: 3 * time.Second,
+		//ReadTimeout:  5 * time.Second,
+	}
+
+	log.Fatal(srv.ListenAndServe())
+	return nil
+}
+
+func ParserHandler(h PublicHandler, jobs *int, isParsing *bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body.Read()
 		ch := make(chan string, 1)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 		defer cancel()
-
 		go h.RunParser(ctx, jobs, ch)
-		//w.WriteHeader(http.StatusAccepted)
 		select {
-		case <-ctx.Done():
-			fmt.Printf("Context cancell ed: %v\n", ctx.Err())
-			w.WriteHeader(http.StatusRequestTimeout)
 		case result := <-ch:
-			fmt.Printf("Done: %s\n", result)
-			w.WriteHeader(http.StatusOK)
+			if result == "Done Parse Timeout" {
+				*isParsing = false
+				log.Printf(result)
+				w.WriteHeader(http.StatusRequestTimeout)
+			}
+			if result == "Done Parse" {
+				log.Printf(result)
+				*isParsing = false
+				w.WriteHeader(http.StatusOK)
+			}
 		}
-	})).Methods("GET")
-	r.HandleFunc("/restaurant", app.basicAuth(func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func RestaurantHandler(h PublicHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		var resp []structs.Restaurant
 		var err error
 		if resp, err = h.GetAllRestaurants(); err != nil {
@@ -79,8 +102,11 @@ func RunPublic(
 			log.Println("Не смог кодировать в json", err)
 		}
 		log.Println("Отдал рестораны!")
-	})).Methods("GET")
-	r.HandleFunc("/restaurant/{id}", app.basicAuth(func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func OneRestaurantHandler(h PublicHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		ids := vars["id"]
 		var err error
@@ -96,19 +122,7 @@ func RunPublic(
 		if err = encoder.Encode(&Prices); err != nil {
 			log.Println("Не смог кодировать в json", err)
 		}
-	})).Methods("GET")
-
-	log.Println("Listening...")
-	srv := &http.Server{
-		Handler: r,
-		Addr:    "127.0.0.1:8000",
-		// Good practice: enforce timeouts for servers you create!
-		WriteTimeout: 3 * time.Second,
-		ReadTimeout:  5 * time.Second,
 	}
-
-	log.Fatal(srv.ListenAndServe())
-	return nil
 }
 
 //базовая авторизация
@@ -133,5 +147,19 @@ func (app *application) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	})
+}
+
+//Locker проверяет выполнятся ли сейчас парсинг
+func locker(next http.HandlerFunc, isParsing *bool) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !*isParsing {
+			log.Println("Нет блокировки, запустил парсинг!")
+			*isParsing = true
+			next.ServeHTTP(w, r)
+		} else {
+			log.Println("Парсинг уже запущен! Обработан повторный реквест - 208 отдал.")
+			w.WriteHeader(http.StatusAlreadyReported)
+		}
 	})
 }
