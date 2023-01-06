@@ -3,7 +3,6 @@ package cmd
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
@@ -11,6 +10,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 	migrate "github.com/rubenv/sql-migrate"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -88,7 +88,7 @@ func init() {
 
 // Command handler func.
 func migrateUpCmdHandler(_ *cobra.Command, args []string) (err error) {
-	return makeMigration(migrate.Up, 0)
+	return makeMigration(migrate.Up, 2)
 }
 
 // Command handler func.
@@ -122,7 +122,6 @@ func migrateCreateCmdHandler(_ *cobra.Command, args []string) (err error) {
 
 func makeMigration(direction migrate.MigrationDirection, limit int) (err error) {
 	var (
-		db             *sql.DB
 		migrationsList = &migrate.FileMigrationSource{
 			Dir: migratePath,
 		}
@@ -136,12 +135,11 @@ func makeMigration(direction migrate.MigrationDirection, limit int) (err error) 
 	if connectPG, err = sql.Open("postgres", pgSql); err != nil {
 		return errors.Wrap(err, "error create conn to database")
 	}
-	fmt.Println("Create Connect")
+	log.Info("Create Connect")
 	defer connectPG.Close()
 
 	var n int
-	if n, err = migrate.ExecMax(db, "postgres", migrationsList, direction, limit); err != nil {
-
+	if n, err = migrate.ExecMax(connectPG, "postgres", migrationsList, direction, limit); err != nil {
 		return err
 	}
 

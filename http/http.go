@@ -6,12 +6,12 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"flag"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 
 	"YandexEdaParser/structs"
 )
@@ -29,10 +29,14 @@ type application struct {
 	}
 }
 
-func RunPublic(
+func Run(
 	ctx context.Context,
 	h PublicHandler,
 ) error {
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02T15:04:05",
+	})
 	r := mux.NewRouter()
 	var jobs *int = flag.Int("jobs", 8, "number of concurrent jobs")
 	app := new(application)
@@ -54,13 +58,10 @@ func RunPublic(
 	r.HandleFunc("/restaurant", app.basicAuth(RestaurantHandler(h))).Methods("GET")
 	r.HandleFunc("/restaurant/{id}", app.basicAuth(OneRestaurantHandler(h))).Methods("GET")
 
-	log.Println("Listening...")
+	log.Info("Listening...")
 	srv := &http.Server{
 		Handler: r,
 		Addr:    "127.0.0.1:8000",
-		// Good practice: enforce timeouts for servers you create!
-		//WriteTimeout: 3 * time.Second,
-		//ReadTimeout:  5 * time.Second,
 	}
 
 	log.Fatal(srv.ListenAndServe())
@@ -69,22 +70,40 @@ func RunPublic(
 
 func ParserHandler(h PublicHandler, jobs *int, isParsing *bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body.Read()
 		ch := make(chan string, 1)
+		//устанавливаю таймаут выполнения в 30 секунд
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 		defer cancel()
-		go h.RunParser(ctx, jobs, ch)
-		select {
-		case result := <-ch:
-			if result == "Done Parse Timeout" {
-				*isParsing = false
-				log.Printf(result)
-				w.WriteHeader(http.StatusRequestTimeout)
-			}
-			if result == "Done Parse" {
-				log.Printf(result)
-				*isParsing = false
-				w.WriteHeader(http.StatusOK)
+		//получаю потоки из переменной запроса
+		var oneTimeJobs, _ = strconv.Atoi(r.URL.Query().Get("jobs"))
+		if oneTimeJobs > *jobs {
+			log.Info("Запросил слишком много потоков, дал отворот.")
+			*isParsing = false
+			w.WriteHeader(http.StatusUnprocessableEntity)
+		} else {
+			jobs = &oneTimeJobs
+			//запускаем сам парсер
+			go h.RunParser(ctx, jobs, ch)
+			//слушаем и обрабатываем результат парсинга
+			select {
+			case result := <-ch:
+				if result == "Done Parse Timeout" {
+					*isParsing = false
+					log.Info("Не завершил парсинг. Оборвал по таймаунту.")
+					w.WriteHeader(http.StatusRequestTimeout)
+					break
+				}
+				if result == "Done Parse" {
+					log.Info(result)
+					*isParsing = false
+					w.WriteHeader(http.StatusOK)
+					break
+				} else {
+					log.Error(result)
+					*isParsing = false
+					w.WriteHeader(http.StatusInternalServerError)
+					break
+				}
 			}
 		}
 	}
@@ -95,13 +114,13 @@ func RestaurantHandler(h PublicHandler) http.HandlerFunc {
 		var resp []structs.Restaurant
 		var err error
 		if resp, err = h.GetAllRestaurants(); err != nil {
-			log.Println(err)
+			log.Error(err)
 		}
 		encoder := json.NewEncoder(w)
 		if err = encoder.Encode(&resp); err != nil {
-			log.Println("Не смог кодировать в json", err)
+			log.Error("Не смог кодировать в json", err)
 		}
-		log.Println("Отдал рестораны!")
+		log.Info("Отдал рестораны!")
 	}
 }
 
@@ -112,15 +131,15 @@ func OneRestaurantHandler(h PublicHandler) http.HandlerFunc {
 		var err error
 		var id int
 		if id, err = strconv.Atoi(ids); err != nil {
-			log.Println(err)
+			log.Error(err)
 		}
 		var Prices []int
 		if Prices, err = h.GetRestaurantPrices(id); err != nil {
-			log.Println(err)
+			log.Error(err)
 		}
 		encoder := json.NewEncoder(w)
 		if err = encoder.Encode(&Prices); err != nil {
-			log.Println("Не смог кодировать в json", err)
+			log.Error("Не смог кодировать в json", err)
 		}
 	}
 }
@@ -154,11 +173,11 @@ func (app *application) basicAuth(next http.HandlerFunc) http.HandlerFunc {
 func locker(next http.HandlerFunc, isParsing *bool) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !*isParsing {
-			log.Println("Нет блокировки, запустил парсинг!")
+			log.Info("Нет блокировки, запустил парсинг!")
 			*isParsing = true
 			next.ServeHTTP(w, r)
 		} else {
-			log.Println("Парсинг уже запущен! Обработан повторный реквест - 208 отдал.")
+			log.Info("Парсинг уже запущен! Обработан повторный реквест - 208 отдал.")
 			w.WriteHeader(http.StatusAlreadyReported)
 		}
 	})

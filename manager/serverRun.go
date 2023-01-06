@@ -2,7 +2,8 @@ package manager
 
 import (
 	"context"
-	"log"
+
+	log "github.com/sirupsen/logrus"
 
 	httpServer "YandexEdaParser/http"
 	"YandexEdaParser/structs"
@@ -14,7 +15,7 @@ func ServerRun(config structs.Config) {
 
 	var ctx, cancel = context.WithCancel(context.Background())
 
-	if err = httpServer.RunPublic(ctx, man); err != nil {
+	if err = httpServer.Run(ctx, man); err != nil {
 		log.Println("failed start public http server error: ", err)
 		cancel()
 	}

@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 
 	"YandexEdaParser/db"
 	"YandexEdaParser/structs"
@@ -19,18 +19,21 @@ import (
 var err error
 
 func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string) (err error) {
-	log.Println("Начал многопоточный парсинг, потоков ", *jobs)
+	log.Info("Начал многопоточный парсинг, потоков ", *jobs)
 
 	getRestHttp := fmt.Sprintf("https://eda.yandex.ru/api/v2/catalog?latitude=%f&longitude=%f&rating=4.8", y.Latitude, y.Longitude)
 
 	var allRestorationListResponse *http.Response
 	if allRestorationListResponse, err = http.Get(getRestHttp); err != nil {
-		log.Println(errors.Wrap(err, "Error Get from Yandex"))
+		//логирую ошибку и отправляю её в канал результата
+		log.Error(errors.Wrap(err, "Error Get from Yandex"))
+		ch <- err.Error()
 		return errors.Wrap(err, "Error Get from Yandex")
 	}
 	var bodyAllRestorationListResponse []byte
 	if bodyAllRestorationListResponse, err = io.ReadAll(allRestorationListResponse.Body); err != nil {
-		log.Println(errors.Wrap(err, "Error Read Body allRestorationListResponse"))
+		log.Error(errors.Wrap(err, "Error Read Body allRestorationListResponse"))
+		ch <- err.Error()
 		return errors.Wrap(err, "Error Read Body allRestorationListResponse")
 	}
 
@@ -51,12 +54,7 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 			select {
 			case <-ctx.Done():
 				//заканчиваем обработку если упал таймаут сверху
-				var zeroRest structs.Restaurant
-				log.Println("Контекст завершился, обработчики прибиваем.")
-				for i := 0; i < *jobs; i++ {
-					restInput <- zeroRest
-					<-done
-				}
+				endruner("Контекст завершился, обработчики прибиваем.", restInput, jobs, done)
 				ch <- "Done Parse Timeout"
 				return nil
 			default:
@@ -64,11 +62,7 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 			}
 		}
 	}
-	var zeroRest structs.Restaurant
-	for i := 0; i < *jobs; i++ {
-		restInput <- zeroRest
-		<-done
-	}
+	endruner("Передал все рестораны, обработчики прибиваем", restInput, jobs, done)
 	ch <- "Done Parse"
 	return nil
 }
@@ -76,7 +70,7 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 // Поток-runner.
 func runner(restInput chan structs.Restaurant, done chan bool, DB db.Repository, i int) {
 	// Бесконечный цикл.
-	log.Println("Запустил обработчик в потоке", i+1)
+	log.Debug("Запустил обработчик в потоке", i+1)
 	for {
 		rest := <-restInput
 		// Если YandexId пустое, нас просят завершиться.
@@ -100,11 +94,11 @@ func runner(restInput chan structs.Restaurant, done chan bool, DB db.Repository,
 					//получаю текущий рейтинг
 					var currentRating float64
 					if currentRating, err = DB.GetRestaurantInternalRating(rest.ID); err != nil {
-						log.Println(err)
+						log.Error(err)
 					}
 					if currentRating < rest.InternalRating {
 						if item.RestaurantId, err = DB.AddOrUpdateRestaurant(rest); err != nil {
-							log.Println(err)
+							log.Error(err)
 						}
 					}
 					DB.AddOrUpdateItem(item)
@@ -113,12 +107,21 @@ func runner(restInput chan structs.Restaurant, done chan bool, DB db.Repository,
 		}
 	}
 	// Посылаем сообщение, что поток завершился.
-	log.Println("Завершил обаботку в потоке", i+1)
+	log.Debug("Завершил обаботку в потоке", i+1)
 	done <- true
 }
 
+func endruner(msg string, restInput chan structs.Restaurant, jobs *int, done chan bool) {
+	var zeroRest structs.Restaurant
+	log.Info(msg)
+	for i := 0; i < *jobs; i++ {
+		restInput <- zeroRest
+		<-done
+	}
+
+}
 func (y *YandexManager) GetAllRestaurants() (Restaurants []structs.Restaurant, err error) {
-	log.Println("Запросили все рестораны - отдаю")
+	log.Info("Запросили все рестораны - отдаю")
 	if Restaurants, err = y.Repository.GetAllRestaurants(); err != nil {
 		return nil, err
 	}
@@ -126,7 +129,7 @@ func (y *YandexManager) GetAllRestaurants() (Restaurants []structs.Restaurant, e
 }
 
 func (y *YandexManager) GetRestaurantPrices(RestId int) (Prices []int, err error) {
-	log.Println("Запросили цены ресторана - отдаю")
+	log.Info("Запросили цены ресторана - отдаю")
 	if Prices, err = y.Repository.GetRestaurantPrices(RestId); err != nil {
 		return nil, err
 	}

@@ -21,6 +21,18 @@ var rootCmd = &cobra.Command{
 	Long:              ``,
 	PersistentPreRunE: initConfig,
 	Run: func(cmd *cobra.Command, args []string) {
+		rating, _ := cmd.Flags().GetFloat64("r")
+		latitude, _ := cmd.Flags().GetFloat64("r")
+		longitude, _ := cmd.Flags().GetFloat64("r")
+		if rating != 0 {
+			config.Rating = rating
+		}
+		if latitude != 0 {
+			config.Location.Latitude = latitude
+		}
+		if longitude != 0 {
+			config.Location.Longitude = longitude
+		}
 		manager.ServerRun(*config)
 	},
 }
@@ -35,7 +47,10 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is cfg/config.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "cfg/config.yaml", "config file (default is cfg/config.yaml)")
+	rootCmd.Flags().Float64("r", 0, "from config file")
+	rootCmd.Flags().Float64("latitude", 0, "from config file")
+	rootCmd.Flags().Float64("longitude", 0, "from config file")
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
