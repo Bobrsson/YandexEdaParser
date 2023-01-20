@@ -11,7 +11,10 @@ import (
 
 func ServerRun(config structs.Config) {
 	man := new(YandexManager)
-	man.Run(config.DB, config.Location, config.Rating)
+
+	if err = man.Run(config.DB, config.Location, config.Rating); err != nil {
+		log.Error(err)
+	}
 
 	var ctx, cancel = context.WithCancel(context.Background())
 

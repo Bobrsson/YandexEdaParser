@@ -1,12 +1,16 @@
 DB:
-  host: localhost
-  port: 5432
+  host: "database" #если запускаем в докере - указываем имя сервиса с постргрей
+  #host: 0.0.0.0
   username: postgres
   password: password
   database: postgres
+  port: 5432 #если запускаем в докере - указываем стандартный 5432
+  #port: 5434
 
 location:
   latitude: 59.99718
   longitude: 30.35903
 
 rating: 4.5
+
+jobs: 8

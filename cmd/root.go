@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"YandexEdaParser/manager"
@@ -56,10 +58,17 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig(_ *cobra.Command, _ []string) (err error) {
+
+	list_env()
 	if config, err = manager.NewConfig(cfgFile); err != nil {
 		return errors.Wrap(err, "Config loading error: %s")
 		return err
 	}
-
 	return nil
+}
+
+func list_env() {
+	if err := godotenv.Load(); err != nil {
+		log.Info("No .env file found")
+	}
 }

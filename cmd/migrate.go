@@ -127,15 +127,15 @@ func makeMigration(direction migrate.MigrationDirection, limit int) (err error) 
 		}
 	)
 	//формируем конфиги для подключения к базам
-	pgSql := fmt.Sprintf("host=%s port=%d user=%s "+
+	pgSql := fmt.Sprintf("host=%s port=%s user=%s "+
 		"password=%s dbname=%s sslmode=disable binary_parameters=yes",
 		config.DB.Host, config.DB.Port, config.DB.Username, config.DB.Password, config.DB.Database)
 	//создаем конекты к используемым базам
 	var connectPG *sql.DB
 	if connectPG, err = sql.Open("postgres", pgSql); err != nil {
+		log.Error(err, "error create conn to database", pgSql)
 		return errors.Wrap(err, "error create conn to database")
 	}
-	log.Info("Create Connect")
 	defer connectPG.Close()
 
 	var n int

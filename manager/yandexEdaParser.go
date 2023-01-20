@@ -67,6 +67,10 @@ func (y YandexManager) RunParser(ctx context.Context, jobs *int, ch chan string)
 	return nil
 }
 
+func (y YandexManager) PingPostgres() {
+	log.Info(y.Repository.DB.Ping())
+}
+
 // Поток-runner.
 func runner(restInput chan structs.Restaurant, done chan bool, DB db.Repository, i int) {
 	// Бесконечный цикл.
@@ -94,11 +98,11 @@ func runner(restInput chan structs.Restaurant, done chan bool, DB db.Repository,
 					//получаю текущий рейтинг
 					var currentRating float64
 					if currentRating, err = DB.GetRestaurantInternalRating(rest.ID); err != nil {
-						log.Error(err)
+						log.Error("Ошибка получения внутренего рейтинаг ", err)
 					}
 					if currentRating < rest.InternalRating {
 						if item.RestaurantId, err = DB.AddOrUpdateRestaurant(rest); err != nil {
-							log.Error(err)
+							log.Error("Ошибка обновления или записи в базу ресторана ", err)
 						}
 					}
 					DB.AddOrUpdateItem(item)

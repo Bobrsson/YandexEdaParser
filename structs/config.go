@@ -8,7 +8,7 @@ type Config struct {
 
 type DataBase struct {
 	Host     string `yaml:"host"`
-	Port     int64  `yaml:"port"`
+	Port     string `yaml:"port"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	Database string `yaml:"database"`

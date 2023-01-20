@@ -20,6 +20,7 @@ type PublicHandler interface {
 	RunParser(ctx context.Context, jobs *int, ch chan string) (err error)
 	GetAllRestaurants() (Restaurants []structs.Restaurant, err error)
 	GetRestaurantPrices(RestId int) (Prices []int, err error)
+	PingPostgres()
 }
 
 type application struct {
@@ -57,15 +58,24 @@ func Run(
 	r.HandleFunc("/parse", locker(app.basicAuth(ParserHandler(h, jobs, &isParsing)), &isParsing)).Methods("GET")
 	r.HandleFunc("/restaurant", app.basicAuth(RestaurantHandler(h))).Methods("GET")
 	r.HandleFunc("/restaurant/{id}", app.basicAuth(OneRestaurantHandler(h))).Methods("GET")
+	r.HandleFunc("/pingpostgres", PingPostgres(h)).Methods("GET")
 
-	log.Info("Listening...")
 	srv := &http.Server{
 		Handler: r,
-		Addr:    "127.0.0.1:8000",
+		Addr:    "0.0.0.0:8000",
 	}
-
-	log.Fatal(srv.ListenAndServe())
+	log.WithField("addr", srv.Addr).Info("starting server")
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("listen: %s\n", err)
+	}
 	return nil
+}
+
+func PingPostgres(h PublicHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log.Info("Ping postgres...")
+		h.PingPostgres()
+	}
 }
 
 func ParserHandler(h PublicHandler, jobs *int, isParsing *bool) http.HandlerFunc {
@@ -81,7 +91,9 @@ func ParserHandler(h PublicHandler, jobs *int, isParsing *bool) http.HandlerFunc
 			*isParsing = false
 			w.WriteHeader(http.StatusUnprocessableEntity)
 		} else {
-			jobs = &oneTimeJobs
+			if oneTimeJobs != 0 {
+				jobs = &oneTimeJobs
+			}
 			//запускаем сам парсер
 			go h.RunParser(ctx, jobs, ch)
 			//слушаем и обрабатываем результат парсинга

@@ -16,12 +16,14 @@ CREATE TABLE YandexEdaParser.menuitem
 (
     id         SERIAL                                 NOT NULL,
     yandexId   INTEGER                                NOT NULL,
+    restaurantId INTEGER     NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
     name       TEXT                                   NOT NULL,
     description       TEXT ,
     price     FLOAT,
     value     INTEGER,
+    internalRating FLOAT,
     PRIMARY KEY (id)
 );
 

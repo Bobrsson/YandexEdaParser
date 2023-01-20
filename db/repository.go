@@ -29,10 +29,9 @@ type Repository struct {
 }
 
 func (r *Repository) Init(db structs.DataBase) (err error) {
-	pgSql := fmt.Sprintf("host=%s port=%d user=%s "+
+	pgSql := fmt.Sprintf("host=%s port=%s user=%s "+
 		"password=%s dbname=%s sslmode=disable binary_parameters=yes",
 		db.Host, db.Port, db.Username, db.Password, db.Database)
-
 	//создаем конект к используемым базам
 	if r.DB, err = sql.Open("postgres", pgSql); err != nil {
 		return errors.Wrap(err, "error create conn to pgSqlPartner")
