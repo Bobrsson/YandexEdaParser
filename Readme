@@ -1,32 +1,12 @@
 
-Git global setup
+Итоговый проект Онбординга 3L https://jira.ddl.com/browse/L3-1978
 
-git config --global user.name "Dmitriy Sukhoruchenkov"
-git config --global user.email "d.sukhoruchenkov@fbs.com"
+Сервис реализовывает многопоточный парсинг Яндекс еды по http запросу GET /parse.
+Сохраняет к себе в БД рестораны в меню которых есть ролл Филадельфия с лососем.
 
-Create a new repository
+Реализовывает формирование собственного рейтинга. Выдачу ресторанов по http запросу GET /restaurant.
 
-git clone git@gitlab.fbs-d.com:it-support/line3/volkov_yandex_food.git
-cd volkov_yandex_food
-git switch -c main
-touch README.md
-git add README.md
-git commit -m "add README"
-git push -u origin main
+Отдает цены на рол Филадельфия в ресторане по http запросу GET /restaurant/:id
 
-Push an existing folder
+Более детальное описание в задаче.
 
-cd existing_folder
-git init --initial-branch=main
-git remote add origin git@gitlab.fbs-d.com:it-support/line3/volkov_yandex_food.git
-git add .
-git commit -m "Initial commit"
-git push -u origin main
-
-Push an existing Git repository
-
-cd existing_repo
-git remote rename origin old-origin
-git remote add origin git@gitlab.fbs-d.com:it-support/line3/volkov_yandex_food.git
-git push -u origin --all
-git push -u origin --tags
